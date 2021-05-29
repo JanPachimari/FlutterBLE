@@ -57,14 +57,13 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     widget.flutterBlue.scanResults.listen((List<ScanResult> results) {
-      for (ScanResult result in results) {
+      for (ScanResult result in results)
         _addDevice(result);
-      }
     });
     widget.flutterBlue.startScan();
   }
 
-  ListView _buildDevicesListView() {
+  ListView _buildListView() {
     List<Container> containers = [];
     for (BluetoothDevice device in widget.deviceList) {
       containers.add(
@@ -104,10 +103,10 @@ class _MyHomePageState extends State<MyHomePage> {
                     Text(
                       "RSSI: " + widget.rssiMap[device.id].toString(),
                       style: widget.rssiMap[device.id] <= -100 ?
-                        TextStyle(color: Colors.red) :
+                          TextStyle(color: Colors.red) :
                         widget.rssiMap[device.id] <= -50 ?
-                        TextStyle(color: Colors.yellow) :
-                        TextStyle(color: Colors.green),
+                          TextStyle(color: Colors.yellow) :
+                          TextStyle(color: Colors.green),
                     ),
                   ],
                 ),
@@ -119,8 +118,26 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     return ListView(
-      padding: EdgeInsets.only(top: 20.0),
+      padding: EdgeInsets.only(top: 0.0),
       children: <Widget>[
+        TextField(
+          decoration: InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Enter # Scans'
+          ),
+        ),
+        TextButton(
+          onPressed: () {
+            print('button 1 test');
+          },
+          child: const Text('Start BLE Scanning'),
+        ),
+        TextButton(
+          onPressed: () {
+            print('button 2 test');
+          },
+          child: const Text('Open L2CAP Channel'),
+        ),
         ...containers,
       ],
     );
@@ -131,6 +148,6 @@ class _MyHomePageState extends State<MyHomePage> {
     appBar: AppBar(
       title: Text(widget.title),
     ),
-    body: _buildDevicesListView(),
+    body: _buildListView(),
   );
 }
