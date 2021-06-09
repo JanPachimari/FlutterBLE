@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:developer' as dev;
 import 'dart:io' as io;
@@ -72,6 +73,19 @@ class MyThirdPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text("BLE Scanning Results"),
+        actions: <Widget>[
+          PopupMenuButton<String>(
+            onSelected: _onPopupMenuClick,
+            itemBuilder: (BuildContext context) {
+              return {'Copy to clipboard'}.map((String choice) {
+                return PopupMenuItem<String>(
+                  value: choice,
+                  child: Text(choice),
+                );
+              }).toList();
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Expanded(
@@ -85,6 +99,16 @@ class MyThirdPage extends StatelessWidget {
         )
       ),
     );
+  }
+
+  _onPopupMenuClick(String value) {
+    switch (value) {
+      case 'Copy to clipboard':
+        Clipboard.setData(ClipboardData(text: _getAllRssiMapAsString()));
+        return;
+      default:
+        return;
+    }
   }
 
   _getAllRssiMapAsString(){
