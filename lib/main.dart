@@ -87,17 +87,22 @@ class MyThirdPage extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Expanded(
-          flex: 1,
-          child: Text(
-            getAllRssiMap(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-            maxLines: null,
+      body: ListView(
+        children: [
+          SingleChildScrollView(
+            child: Expanded(
+              flex: 1,
+              child: Text(
+                getAllRssiMap(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                maxLines: null,
+              ),
+            )
           ),
-        )
+        ],
       ),
+      // todo graphs here!
     );
   }
 
@@ -241,7 +246,6 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       );
     }
-
     return ListView(
       padding: EdgeInsets.only(top: 0.0),
       children: <Widget>[
