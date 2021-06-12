@@ -75,7 +75,7 @@ class MyThirdPage extends StatelessWidget {
         title: Text("BLE Scanning Results"),
         actions: <Widget>[
           PopupMenuButton<String>(
-            onSelected: _onPopupMenuClick,
+            onSelected: onPopupMenuClick,
             itemBuilder: (BuildContext context) {
               return {'Copy to clipboard'}.map((String choice) {
                 return PopupMenuItem<String>(
@@ -91,7 +91,7 @@ class MyThirdPage extends StatelessWidget {
         child: Expanded(
           flex: 1,
           child: Text(
-            _getAllRssiMapAsString(),
+            getAllRssiMap(),
             textAlign: TextAlign.center,
             style: const TextStyle(fontWeight: FontWeight.bold),
             maxLines: null,
@@ -101,20 +101,34 @@ class MyThirdPage extends StatelessWidget {
     );
   }
 
-  _onPopupMenuClick(String value) {
+  void onPopupMenuClick(String value) {
     switch (value) {
       case 'Copy to clipboard':
-        Clipboard.setData(ClipboardData(text: _getAllRssiMapAsString()));
+        Clipboard.setData(ClipboardData(text: getAllRssiMap()));
         return;
       default:
         return;
     }
   }
 
-  _getAllRssiMapAsString(){
+  String getAllRssiMap(){
     String info = '';
+    List<String> rssiList = [];
+    List<String> uniqueRssiList = [];
     allRssiMap.forEach((k, v) => {
-      info += '\n $k \n\n $v \n\n --- \n',
+      rssiList = v.split(' '),
+      for (String value in rssiList) {
+        if (!uniqueRssiList.contains(value)) {
+          uniqueRssiList.add(value),
+        }
+      },
+      info += '\n $k \n\n ',
+      for (String value in uniqueRssiList) {
+        info += ' $value '
+      },
+      info += '\n\n --- \n',
+      rssiList = [],
+      uniqueRssiList = [],
     });
     return info;
   }
@@ -124,9 +138,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   TextEditingController tec = new TextEditingController();
   Timer timer;
-  int scansSoFar = -2;
+  int scansSoFar = -1;
 
-  _addDevice(final ScanResult result) {
+  void addDevice(final ScanResult result) {
     if (!widget.deviceList.contains(result.device)) {
       setState(() {
         widget.deviceList.add(result.device);
@@ -134,35 +148,39 @@ class _MyHomePageState extends State<MyHomePage> {
       });
     }
     if (allRssiMap.containsKey(result.device.id))
-      allRssiMap[result.device.id] += ' ' + result.rssi.toString();
+      allRssiMap[result.device.id] += ' (${getIndexOfElement(result.device).toString()})' + result.rssi.toString();
     else
-      allRssiMap[result.device.id] = result.rssi.toString();
+      allRssiMap[result.device.id] = ' (${getIndexOfElement(result.device).toString()})' + result.rssi.toString();
   }
 
-  _scanForDevices() {
+  void scanForDevices() {
     int amountScans = int.parse(tec.text);
-    if (!amountScans.isNaN) {
-      _singleScan();
-      timer = Timer.periodic(Duration(seconds: 4), (Timer t) => _singleScan());
+    if (!amountScans.isNaN && amountScans >= 1) {
+      timer = Timer.periodic(Duration(seconds: 4), (Timer t) => doSingleScan());
     }
   }
 
-  _singleScan() {
+  void doSingleScan() {
     widget.deviceList = [];
     widget.flutterBlue.scanResults.listen((List<ScanResult> results) {
       for (ScanResult result in results)
-        _addDevice(result);
+        addDevice(result);
     });
     widget.flutterBlue.startScan(timeout: Duration(seconds: 3));
     scansSoFar += 1;
-    if (int.parse(tec.text) == scansSoFar && scansSoFar >= 0) {
+    if (int.parse(tec.text) == scansSoFar && scansSoFar >= 1) {
       timer.cancel();
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => MyThirdPage()),
       );
-      scansSoFar = -2;
+      scansSoFar = -1;
     }
+  }
+
+  int getIndexOfElement(BluetoothDevice device) {
+    int index = widget.deviceList.indexOf(device);
+    return index + 1;
   }
 
   @override
@@ -183,7 +201,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 child: Column(
                   children: <Widget>[
                     Text(
-                      "No. " + widget.deviceList.indexOf(device).toString(),
+                      "No. " + getIndexOfElement(device).toString(),
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 20),
                     ),
@@ -212,7 +230,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       style: widget.currentRssiMap[device.id] <= -100 ?
                           TextStyle(color: Colors.red) :
                         widget.currentRssiMap[device.id] <= -50 ?
-                          TextStyle(color: Colors.yellow) :
+                          TextStyle(color: Colors.orange) :
                           TextStyle(color: Colors.green),
                     ),
                   ],
@@ -237,7 +255,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
         TextButton(
           onPressed: () {
-            _scanForDevices();
+            scanForDevices();
           },
           child: const Text('Start BLE Scanning'),
         ),
