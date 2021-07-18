@@ -2,105 +2,101 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:developer' as dev;
-import 'dart:io' as io;
 
 void main() {
-  runApp(MyApp());
+  // Executable entrypoint.
+  runApp(FlutterApp());
 }
 
-class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
+// Global variables.
+// Maps the unique device IDs to their signal strength, discovered within all cycles.
+var allRssiMap = new Map<DeviceIdentifier, String>();
+
+class FlutterApp extends StatelessWidget {
+  // Root of the application.
+  final String appTitle = 'BLE Measurement Tool for Flutter';
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter BLE',
+      // Theme of the application, here: Material Design.
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(title: 'Flutter BLE'),
+      home: HomeRoute(title: appTitle),
     );
   }
 }
 
-var allRssiMap = new Map<DeviceIdentifier, String>();
-
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
+class HomeRoute extends StatefulWidget {
+  // Hold the app title provided by the parent, here: The app widget.
   final String title;
-
-  final FlutterBlue flutterBlue = FlutterBlue.instance;
-  List<BluetoothDevice> deviceList = [];
-  var currentRssiMap = new Map<DeviceIdentifier, int>();
+  HomeRoute({Key key, this.title}) : super(key: key);
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  _HomeRouteState createState() => _HomeRouteState();
+
+  // Obtain an instance of FlutterBlue.
+  final FlutterBlue flutterBlue = FlutterBlue.instance;
+  // List that will contain all discovered Bluetooth devices.
+  List<BluetoothDevice> devices = [];
+  // Maps the unique device IDs to their signal strength, discovered within the current cycle.
+  var currentRssiMap = new Map<DeviceIdentifier, int>();
 }
 
-class MySecondPage extends StatelessWidget {
+class ChannelRoute extends StatelessWidget {
+  // Route for opening an L2CAP channel.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Open L2CAP Channel"),
+        title: Text('Open L2CAP Channel ...'),
       ),
       body: Center(
         child: ElevatedButton(
+          child: Text('Go back!'),
           onPressed: () {
             // Navigate back to first route when tapped.
             Navigator.pop(context);
           },
-          child: Text('Go back!'),
         ),
       ),
     );
   }
 }
 
-class MyThirdPage extends StatelessWidget {
+class ResultRoute extends StatelessWidget {
+  // Route for displaying the BLE scanning results.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("BLE Scanning Results"),
+        title: Text('BLE Scanning Results'),
         actions: <Widget>[
           PopupMenuButton<String>(
+            // Display option for copying the results to the clipboard as a string.
             onSelected: onPopupMenuClick,
             itemBuilder: (BuildContext context) {
-              return {'Copy to clipboard'}.map((String choice) {
+              return {'Copy to Clipboard'}.map((String option) {
                 return PopupMenuItem<String>(
-                  value: choice,
-                  child: Text(choice),
+                  value: option,
+                  child: Text(option),
                 );
               }).toList();
             },
           ),
         ],
       ),
-      body: ListView(
-        children: [
-          SingleChildScrollView(
-            child: Expanded(
-              flex: 1,
-              child: Text(
-                getAllRssiMap(),
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-                maxLines: null,
-              ),
-            )
+      body: SingleChildScrollView(
+        child: Text(
+          // Display the collected results from all scan cycles.
+          getAllRssiMap(),
+          textAlign: TextAlign.center,
+          maxLines: null,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold
           ),
-        ],
+        ),
       ),
       // todo graphs here!
     );
@@ -109,6 +105,7 @@ class MyThirdPage extends StatelessWidget {
   void onPopupMenuClick(String value) {
     switch (value) {
       case 'Copy to clipboard':
+        // Copy results to the device's clipboard for use elsewhere.
         Clipboard.setData(ClipboardData(text: getAllRssiMap()));
         return;
       default:
@@ -139,52 +136,52 @@ class MyThirdPage extends StatelessWidget {
   }
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _HomeRouteState extends State<HomeRoute> {
 
-  TextEditingController tec = new TextEditingController();
+  TextEditingController scanController = new TextEditingController();
   Timer timer;
   int scansSoFar = -1;
 
   void addDevice(final ScanResult result) {
-    if (!widget.deviceList.contains(result.device)) {
+    if (!widget.devices.contains(result.device)) {
       setState(() {
-        widget.deviceList.add(result.device);
+        widget.devices.add(result.device);
         widget.currentRssiMap[result.device.id] = result.rssi;
       });
     }
     if (allRssiMap.containsKey(result.device.id))
-      allRssiMap[result.device.id] += ' (${getIndexOfElement(result.device).toString()})' + result.rssi.toString();
+      allRssiMap[result.device.id] += ' (${getOrder(result.device).toString()})' + result.rssi.toString();
     else
-      allRssiMap[result.device.id] = ' (${getIndexOfElement(result.device).toString()})' + result.rssi.toString();
+      allRssiMap[result.device.id] = ' (${getOrder(result.device).toString()})' + result.rssi.toString();
   }
 
   void scanForDevices() {
-    int amountScans = int.parse(tec.text);
+    int amountScans = int.parse(scanController.text);
     if (!amountScans.isNaN && amountScans >= 1) {
       timer = Timer.periodic(Duration(seconds: 4), (Timer t) => doSingleScan());
     }
   }
 
   void doSingleScan() {
-    widget.deviceList = [];
+    widget.devices = [];
     widget.flutterBlue.scanResults.listen((List<ScanResult> results) {
       for (ScanResult result in results)
         addDevice(result);
     });
     widget.flutterBlue.startScan(timeout: Duration(seconds: 3));
     scansSoFar += 1;
-    if (int.parse(tec.text) == scansSoFar && scansSoFar >= 1) {
+    if (int.parse(scanController.text) == scansSoFar && scansSoFar >= 1) {
       timer.cancel();
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => MyThirdPage()),
+        MaterialPageRoute(builder: (context) => ResultRoute()),
       );
       scansSoFar = -1;
     }
   }
 
-  int getIndexOfElement(BluetoothDevice device) {
-    int index = widget.deviceList.indexOf(device);
+  int getOrder(BluetoothDevice device) {
+    int index = widget.devices.indexOf(device);
     return index + 1;
   }
 
@@ -195,7 +192,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   ListView _buildListView() {
     List<Container> containers = [];
-    for (BluetoothDevice device in widget.deviceList) {
+    for (BluetoothDevice device in widget.devices) {
       containers.add(
         Container(
           height: 75,
@@ -206,7 +203,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 child: Column(
                   children: <Widget>[
                     Text(
-                      "No. " + getIndexOfElement(device).toString(),
+                      "No. " + getOrder(device).toString(),
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 20),
                     ),
@@ -233,10 +230,10 @@ class _MyHomePageState extends State<MyHomePage> {
                     Text(
                       "RSSI: " + widget.currentRssiMap[device.id].toString(),
                       style: widget.currentRssiMap[device.id] <= -100 ?
-                          TextStyle(color: Colors.red) :
-                        widget.currentRssiMap[device.id] <= -50 ?
-                          TextStyle(color: Colors.orange) :
-                          TextStyle(color: Colors.green),
+                      TextStyle(color: Colors.red) :
+                      widget.currentRssiMap[device.id] <= -50 ?
+                      TextStyle(color: Colors.orange) :
+                      TextStyle(color: Colors.green),
                     ),
                   ],
                 ),
@@ -254,7 +251,7 @@ class _MyHomePageState extends State<MyHomePage> {
               border: OutlineInputBorder(),
               hintText: 'Enter # Scans'
           ),
-          controller: tec,
+          controller: scanController,
           keyboardType: TextInputType.number,
         ),
         TextButton(
@@ -267,7 +264,7 @@ class _MyHomePageState extends State<MyHomePage> {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => MySecondPage()),
+              MaterialPageRoute(builder: (context) => ChannelRoute()),
             );
           },
           child: const Text('Open L2CAP Channel'),
@@ -292,24 +289,3 @@ class _MyHomePageState extends State<MyHomePage> {
     body: _buildListView(),
   );
 }
-
-/*
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
-            */
-
-/*
-
-setState(() {
-
-// This call to setState tells the Flutter framework that something has
-// changed in this State, which causes it to rerun the build method below
-// so that the display can reflect the updated values. If we changed
-// _counter without calling setState(), then the build method would not be
-// called again, and so nothing would appear to happen.
-_counter++;
-});
-
- */
