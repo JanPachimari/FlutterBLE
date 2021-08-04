@@ -1,13 +1,19 @@
 import 'dart:io';
-import 'dart:developer';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_blue/flutter_blue.dart';
+import 'package:draw_graph/draw_graph.dart';
+import 'package:draw_graph/models/feature.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(FlutterApp());
 }
 
-class MyApp extends StatelessWidget {
+Map<DeviceIdentifier, List<int>> order = new Map<DeviceIdentifier, List<int>>();
+Map<DeviceIdentifier, List<int>> rssi = new Map<DeviceIdentifier, List<int>>();
+
+class FlutterApp extends StatelessWidget {
   // This widget is the root of your application.
   final String appTitle = 'BLE Measurement Tool for Flutter';
 
@@ -26,13 +32,13 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(title: appTitle),
+      home: HomeRoute(title: appTitle),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+class HomeRoute extends StatefulWidget {
+  HomeRoute({Key key, this.title}) : super(key: key);
 
   // This widget is the home page of your application. It is stateful, meaning
   // that it has a State object (defined below) that contains fields that affect
@@ -48,17 +54,25 @@ class MyHomePage extends StatefulWidget {
   List<ScanResult> results = [];
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  HomeRouteState createState() => HomeRouteState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  final String scanText = 'Measuring Signal Strength:', scanHintText = '# Scans', scanButtonText = 'Start Scanning ...';
-  final String channelText = 'Measuring Data Throughput:', channelHintText = 'PSM Value', channelButtonText = 'Open Channel ...';
-  final TextEditingController scanController = new TextEditingController(), channelController = new TextEditingController();
-  int scanCurrent = 0, scanTotal = 0;
+class HomeRouteState extends State<HomeRoute> {
+  final String scanText = 'Measuring Detection Order & Signal Strength:';
+  final String scanHintText = '# Scans';
+  final String scanButtonText = 'Start Scanning ...';
+  final String channelText = 'Measuring Data Throughput:';
+  final String channelHintText = 'PSM Value';
+  final String channelButtonText = 'Open Channel ...';
+  final String scanCurrentText = 'Scans Completed:';
+
+  final TextEditingController scanController = new TextEditingController();
+  final TextEditingController channelController = new TextEditingController();
+  int scanCurrent = 0;
+  int scanTotal = 0;
 
   void addResult(final ScanResult result) {
-    if (!widget.results.contains(result)) {
+    if(!widget.results.contains(result)) {
       setState(() {
         widget.results.add(result);
       });
@@ -69,7 +83,10 @@ class _MyHomePageState extends State<MyHomePage> {
     try {
       scanTotal = int.parse(scanController.text);
       if(scanCurrent == scanTotal) {
-        return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => ResultRoute()),
+        );
       }
       else if(scanTotal > 0) {
         widget.results = [];
@@ -78,12 +95,29 @@ class _MyHomePageState extends State<MyHomePage> {
             addResult(result);
           }
         });
-        await widget.flutterBlue.startScan(timeout: Duration(seconds: 5)).then((value) =>
+        return await widget.flutterBlue.startScan(timeout: Duration(seconds: 5)
+        ).then((value) =>
           setState(() {
             scanCurrent += 1;
           }),
-        ).then((value) => widget.flutterBlue.stopScan()
-        ).then((value) => onScanPressed());
+        ).then((value) => {
+          for(ScanResult result in widget.results) {
+            if(!order.containsKey(result.device.id)) {
+              order[result.device.id] = [widget.results.indexOf(result)],
+            }
+            else {
+              order[result.device.id].add(widget.results.indexOf(result)),
+            },
+            if(!rssi.containsKey(result.device.id)) {
+              rssi[result.device.id] = [result.rssi],
+            }
+            else {
+              rssi[result.device.id].add(result.rssi),
+            },
+          },
+        }).then((value) => widget.flutterBlue.stopScan()
+        ).then((value) => onScanPressed()
+        );
       }
     } on IOException {
       // Value entered is not a number.
@@ -101,12 +135,12 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Expanded buildScanWidget() {
     List<Container> containers = [];
-    for (ScanResult result in widget.results) {
+    for(ScanResult result in widget.results) {
       containers.add(
         Container(
           height: 75,
           child: Column(
-            children: [
+            children: <Widget>[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: <Widget>[
@@ -237,6 +271,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
               ],
             ),
+            /*
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: <Widget>[
@@ -269,6 +304,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
               ],
             ),
+
+             */
             Divider(
               thickness: 10,
               color: Colors.blue,
@@ -278,7 +315,10 @@ class _MyHomePageState extends State<MyHomePage> {
               children: <Widget>[
                 Padding(
                   padding: EdgeInsets.all(10),
-                  child: Text('Scan'),
+                  child: Text(
+                    scanCurrentText,
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 Text(
                   '$scanCurrent',
@@ -305,4 +345,299 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
     );
   }
+}
+
+class ResultRoute extends StatelessWidget {
+  final String title = 'BLE Scanning Results';
+  final String orderRawText = 'Detection Order (Raw Data)';
+  final String rssiRawText = 'Signal Strength (Raw Data)';
+  final String clipboardText = 'Copy to Clipboard ...';
+
+  Expanded buildResultWidget() {
+    List<Container> containers = [];
+    order.forEach((key, value) {
+      containers.add(
+        Container(
+          child: Column(
+            children: <Widget>[
+              Padding(
+                padding: EdgeInsets.all(10),
+                child: Text(
+                  '$key',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(30, 0, 0, 0),
+                    child: Text('Times Detected:'),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(0, 0, 30, 0),
+                    child: Text('${value.length}'),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(30, 0, 0, 0),
+                    child: Text('Detection Order (best):'),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(0, 0, 30, 0),
+                    child: Text('${getMin(value)}'),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(30, 0, 0, 0),
+                    child: Text('Detection Order (worst):'),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(0, 0, 30, 0),
+                    child: Text('${getMax(value)}'),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(30, 0, 0, 0),
+                    child: Text('Detection Order (average):'),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(0, 0, 30, 0),
+                    child: Text('${getAvg(value)}'),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(30, 0, 0, 0),
+                    child: Text('Signal Strength (best):'),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(0, 0, 30, 0),
+                    child: Text('${getMax(rssi[key])}'),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(30, 0, 0, 0),
+                    child: Text('Signal Strength (worst):'),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(0, 0, 30, 0),
+                    child: Text('${getMin(rssi[key])}'),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(30, 0, 0, 10),
+                    child: Text('Signal Strength (average):'),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(0, 0, 30, 10),
+                    child: Text('${getAvg(rssi[key])}'),
+                  ),
+                ],
+              ),
+              value.length > 1 ?
+              LineGraph(
+                features: [
+                  Feature(
+                    color: Colors.blue,
+                    data: getData(value),
+                  ),
+                ],
+                size: Size(400, 200),
+                labelX: getLabelX(value),
+                labelY: getLabelY(value),
+                showDescription: false,
+                graphColor: Colors.black,
+                graphOpacity: 0.5,
+              )
+              : Container(),
+              value.length > 1 ?
+              LineGraph(
+                features: [
+                  Feature(
+                    color: Colors.blue,
+                    data: getData(rssi[key]),
+                  ),
+                ],
+                size: Size(400, 200),
+                labelX: getLabelX(rssi[key]),
+                labelY: [
+                  '${(getMax(rssi[key]) + getMin(rssi[key])) / 2}',
+                  '${getMax(rssi[key])}'
+                ],
+                showDescription: false,
+                graphColor: Colors.black,
+                graphOpacity: 0.5,
+              )
+              : Container(),
+              Padding(
+                padding: EdgeInsets.fromLTRB(0, 0, 0, 10),
+              ),
+              Divider(
+                thickness: 5,
+                color: Colors.blue,
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+    ListView listView = new ListView(
+      children: <Widget>[
+        ...containers,
+      ],
+    );
+    return new Expanded(
+      flex: 3,
+      child: listView,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+      ),
+      body: Column(
+        children: <Widget>[
+          Expanded(
+            flex: 1,
+            child: ListView(
+              children: <Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: <Widget>[
+                    Text(
+                      orderRawText,
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    ElevatedButton(
+                      onPressed: onClipboardPressed('order'),
+                      child: Text(clipboardText),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Text('$order'),
+                ),
+                Divider(
+                  thickness: 10,
+                  height: 20,
+                  color: Colors.blue,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: <Widget>[
+                    Text(
+                      rssiRawText,
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    ElevatedButton(
+                      onPressed: onClipboardPressed('rssi'),
+                      child: Text(clipboardText),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Text('$rssi'),
+                ),
+              ],
+            ),
+          ),
+          Divider(
+            thickness: 10,
+            height: 20,
+            color: Colors.blue,
+          ),
+          buildResultWidget(),
+        ],
+      ),
+    );
+  }
+
+  onClipboardPressed(String string) {
+    switch(string) {
+      case 'order':
+        Clipboard.setData(ClipboardData(text: '$order'));
+        return;
+      case 'rssi':
+        Clipboard.setData(ClipboardData(text: '$rssi'));
+        return;
+    }
+  }
+
+  int getMin(List<int> ints) {
+    return ints.reduce(min);
+  }
+
+  int getMax(List<int> ints) {
+    return ints.reduce(max);
+  }
+
+  double getAvg(List<int> ints) {
+    return ints.reduce((a, b) => a + b) / ints.length;
+  }
+
+  List<double> getData(List<int> ints) {
+    double min = getMin(ints).toDouble();
+    double max = getMax(ints).toDouble();
+    List<double> data = [];
+    ints.forEach((element) {
+      if(min == max) {
+        data.add(1);
+      }
+      else {
+        data.add((element.toDouble() - min) / (max - min));
+      }
+    });
+    return data;
+  }
+
+  List<String> getLabelX(List<int> ints) {
+    List<String> data = [];
+    int counter = 0;
+    ints.forEach((element) {
+      data.add('$counter');
+      counter++;
+    });
+    return data;
+  }
+
+  List<String> getLabelY(List<int> ints) {
+    List<String> data = [];
+    if(getMax(ints) != getMin (ints)) {
+      data.add('${getMax(ints) / 4}');
+      data.add('${getMax(ints) / 2}');
+      data.add('${3 * getMax(ints) / 4}');
+    }
+    data.add('${getMax(ints)}');
+    return data;
+  }
+
 }
