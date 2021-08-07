@@ -61,13 +61,12 @@ class HomeRouteState extends State<HomeRoute> {
   final String scanText = 'Measuring Detection Order & Signal Strength:';
   final String scanHintText = '# Scans';
   final String scanButtonText = 'Start Scanning ...';
-  final String channelText = 'Measuring Data Throughput:';
-  final String channelHintText = 'PSM Value';
-  final String channelButtonText = 'Open Channel ...';
+  final String calibrateText = 'Calibrating Device & Distance Estimating:';
+  final String calibrateHintText = 'Device ID';
   final String scanCurrentText = 'Scans Completed:';
 
   final TextEditingController scanController = new TextEditingController();
-  final TextEditingController channelController = new TextEditingController();
+  final TextEditingController calibrateController = new TextEditingController();
   int scanCurrent = 0;
   int scanTotal = 0;
 
@@ -124,9 +123,9 @@ class HomeRouteState extends State<HomeRoute> {
     }
   }
 
-  void onChannelPressed() {
+  void onCalibratePressed(int distance) {
     try {
-      int psmValue = int.parse(channelController.text);
+      String deviceId = calibrateController.text.toUpperCase();
       // todo open new screen
     } on IOException {
       // Value entered is not a number.
@@ -271,7 +270,6 @@ class HomeRouteState extends State<HomeRoute> {
                 ),
               ],
             ),
-            /*
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: <Widget>[
@@ -279,33 +277,41 @@ class HomeRouteState extends State<HomeRoute> {
                   flex: 3,
                   child: Padding(
                     padding: const EdgeInsets.all(10),
-                    child: Text(channelText),
+                    child: Text(calibrateText),
                   ),
                 ),
                 Expanded(
                   flex: 3,
                   child: TextField(
-                    controller: channelController,
-                    keyboardType: TextInputType.number,
+                    controller: calibrateController,
+                    keyboardType: TextInputType.text,
                     decoration: InputDecoration(
-                      hintText: channelHintText,
+                      hintText: calibrateHintText,
                     ),
                   ),
                 ),
                 Expanded(
-                  flex: 4,
+                  flex: 2,
                   child: Padding(
                     padding: const EdgeInsets.all(10),
                     child: ElevatedButton(
-                      onPressed: onChannelPressed,
-                      child: Text(channelButtonText),
+                      onPressed: () => onCalibratePressed(0),
+                      child: Text('0m'),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: ElevatedButton(
+                      onPressed: () => onCalibratePressed(2),
+                      child: Text('2m'),
                     ),
                   ),
                 ),
               ],
             ),
-
-             */
             Divider(
               thickness: 10,
               color: Colors.blue,
@@ -449,12 +455,25 @@ class ResultRoute extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
                   Padding(
-                    padding: EdgeInsets.fromLTRB(30, 0, 0, 10),
+                    padding: EdgeInsets.fromLTRB(30, 0, 0, 0),
                     child: Text('Signal Strength (average):'),
                   ),
                   Padding(
-                    padding: EdgeInsets.fromLTRB(0, 0, 30, 10),
+                    padding: EdgeInsets.fromLTRB(0, 0, 30, 0),
                     child: Text('${getAvg(rssi[key])}'),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(30, 0, 0, 10),
+                    child: Text('Estimated Distance (metres):'),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(0, 0, 30, 10),
+                    child: Text('0'),
                   ),
                 ],
               ),
