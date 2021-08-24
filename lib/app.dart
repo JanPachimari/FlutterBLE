@@ -13,6 +13,9 @@ void main() {
 Map<DeviceIdentifier, List<int>> order = new Map<DeviceIdentifier, List<int>>();
 Map<DeviceIdentifier, List<int>> rssi = new Map<DeviceIdentifier, List<int>>();
 
+int xMin, yMin, xMax, yMax;
+double m, b;
+
 class FlutterApp extends StatelessWidget {
   // This widget is the root of your application.
   final String appTitle = 'BLE Measurement Tool for Flutter';
@@ -62,11 +65,14 @@ class HomeRouteState extends State<HomeRoute> {
   final String scanHintText = '# Scans';
   final String scanButtonText = 'Start Scanning ...';
   final String calibrateText = 'Calibrating Device & Distance Estimating:';
-  final String calibrateHintText = 'Device ID';
   final String scanCurrentText = 'Scans Completed:';
 
   final TextEditingController scanController = new TextEditingController();
-  final TextEditingController calibrateController = new TextEditingController();
+  final TextEditingController xMinController = new TextEditingController();
+  final TextEditingController xMaxController = new TextEditingController();
+  final TextEditingController yMinController = new TextEditingController();
+  final TextEditingController yMaxController = new TextEditingController();
+
   int scanCurrent = 0;
   int scanTotal = 0;
 
@@ -123,10 +129,22 @@ class HomeRouteState extends State<HomeRoute> {
     }
   }
 
-  void onCalibratePressed(int distance) {
+  void onCalibratePressed() {
     try {
-      String deviceId = calibrateController.text.toUpperCase();
-      // todo open new screen
+      xMin = int.parse(xMinController.text);
+      xMax = int.parse(xMaxController.text);
+      yMin = int.parse(yMinController.text);
+      yMax = int.parse(yMaxController.text);
+
+      m = (yMax - yMin) / (xMax - xMin);
+      b = ((xMax * yMin) - (xMin * yMax)) / (xMax - xMin);
+
+      print('xMin = $xMin');
+      print('xMax = $xMax');
+      print('yMin = $yMin');
+      print('yMax = $yMax');
+      print('y = $m * x + $b');
+
     } on IOException {
       // Value entered is not a number.
     }
@@ -281,12 +299,42 @@ class HomeRouteState extends State<HomeRoute> {
                   ),
                 ),
                 Expanded(
-                  flex: 3,
+                  flex: 2,
                   child: TextField(
-                    controller: calibrateController,
-                    keyboardType: TextInputType.text,
+                    controller: xMinController,
+                    keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      hintText: calibrateHintText,
+                      hintText: 'xMin',
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: xMaxController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'xMax',
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: yMinController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'yMin',
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: yMaxController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'yMax',
                     ),
                   ),
                 ),
@@ -295,18 +343,10 @@ class HomeRouteState extends State<HomeRoute> {
                   child: Padding(
                     padding: const EdgeInsets.all(10),
                     child: ElevatedButton(
-                      onPressed: () => onCalibratePressed(0),
-                      child: Text('0m'),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: ElevatedButton(
-                      onPressed: () => onCalibratePressed(2),
-                      child: Text('2m'),
+                      onPressed: onCalibratePressed,
+                      child: Center(
+                        child: Icon(Icons.save),
+                      ),
                     ),
                   ),
                 ),
@@ -473,7 +513,7 @@ class ResultRoute extends StatelessWidget {
                   ),
                   Padding(
                     padding: EdgeInsets.fromLTRB(0, 0, 30, 10),
-                    child: Text('0'),
+                    child: Text(getDistance(getAvg(rssi[key]))),
                   ),
                 ],
               ),
@@ -657,6 +697,13 @@ class ResultRoute extends StatelessWidget {
     }
     data.add('${getMax(ints)}');
     return data;
+  }
+
+  String getDistance(double avg) {
+    if (xMin == null || xMax == null || yMin == null || yMax == null) {
+      return 'unknown';
+    }
+    else return '${m * avg + b}';
   }
 
 }
